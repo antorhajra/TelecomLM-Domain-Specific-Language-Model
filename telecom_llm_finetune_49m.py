@@ -267,10 +267,7 @@ def get_config():
         "preload": "11",                  # matches lm_model_39.pt
         "preload_from_input": True,
         "input_dataset_slug": "last49mfixepoch12checkpoint",
-        # FIX: this must match the EXACT case of your real Kaggle dataset path --
-        # "telecom-pretraining-data459mbcleaned-checkpint39" (lowercase "cleaned"), not
-        # "...459mbCleaned-checkpint39" (capital "C") as in the version that errored.
-        # Kaggle paths are case-sensitive Linux paths.
+       
         "tokenizer_file": "tokenizer49m.json",
         "experiment_name": "runs/lm_finetune",
 
@@ -302,11 +299,7 @@ def latest_weights_file_path(config):
             print(f"[checkpoint] FOUND exact match -> using it.")
             return exact_path
 
-        # FIX: Kaggle sometimes suffixes re-uploaded files, e.g. "lm_model_32 (1).pt".
-        # Look for any file starting with the expected basename+epoch inside the SAME
-        # folder we expected the exact file in, BEFORE falling back to a broader search.
-        # This prevents accidentally picking up an unrelated '_ft_' checkpoint from a
-        # previous fine-tuning run.
+        
         expected_folder = Path(exact_path).parent
         expected_stem = f"{config['model_basename']}{config['preload']}"
         if expected_folder.exists():
@@ -321,7 +314,7 @@ def latest_weights_file_path(config):
         print(f"[checkpoint] WARNING: no checkpoint matching '{expected_stem}*' found in "
               f"{expected_folder}")
 
-    # Fallback: broader search (last resort, loudly flagged)
+    
     model_folder = get_save_path(config)
     model_filename = f"{config['model_basename']}*"
     weights_files = list(Path(model_folder).glob(model_filename))
@@ -395,11 +388,7 @@ def get_ds(config):
     return train_dataloader, val_dataloader, tokenizer
 
 def get_model(config, vocab_size):
-    # FIX: previously hardcoded h=16, d_ff=4096 (the OLD 137M config) regardless of what
-    # config['d_model'] said -- and separately, a d_ff=2024 TYPO (vs the correct 2048) was
-    # found in the version that errored. Your actual pretrained checkpoint is
-    # d_model=512, N=6, h=8, d_ff=2048 -- these MUST match exactly or loading the
-    # checkpoint's weights will fail with a tensor shape-mismatch RuntimeError.
+    
     model = build_decoder_only(
         vocab_size,
         config['seq_len'],
@@ -549,11 +538,10 @@ def run_validation(model, validation_ds, tokenizer, max_len, device, print_msg, 
         writer.add_scalar('validation loss', avg_loss, global_step)
         writer.add_scalar('perplexity', perplexity, global_step)
     try:
-        # CHANGED: prompt now matches the training template (Instruction/Output), and uses a
-        # repetition penalty so the preview is a fair reflection of the fine-tuned model.
+        
         prompt = "Instruction: What is Quality of Service (QoS) in networking?\nOutput:"
         generated = generate_text(model, tokenizer, max_len, max_len, device, prompt,
-                                   temperature=0.7, top_k=40, repetition_penalty=1.3)
+                                   temperature=0.2, top_k=10, repetition_penalty=1.2)
         print_msg(f"TEST PROMPT: {prompt}")
         print_msg(f"GENERATED: {generated}")
         print_msg("-" * 80)
@@ -850,16 +838,7 @@ if model_path:
 
 def generate_text_advanced(model, tokenizer, max_len, device, prompt_text,
                             temperature=0.2, top_k=7, repetition_penalty=1.2):
-    """
-    FIXED: returns ONLY the newly generated tokens (decoded), not the full
-    prompt+generation string. Previously this decoded the entire sequence and
-    tried to string-match "Output:" to strip the prompt back out -- but
-    tokenizer.decode() re-joins tokens with spaces, so "Output:" in your prompt
-    comes back out as "Output :" (space before the colon), which never matched
-    the search string. That silently failed and dumped the whole prompt+answer
-    into the "output" field. Tracking the prompt's token-length and decoding
-    only what comes after it sidesteps tokenizer spacing entirely.
-    """
+    
     model.eval()
     sos_idx = tokenizer.token_to_id('[SOS]')
     eos_idx = tokenizer.token_to_id('[EOS]')
@@ -906,13 +885,7 @@ def generate_text_advanced(model, tokenizer, max_len, device, prompt_text,
 
 def ask_model(user_instruction, user_input_context="", max_len=250,
               temperature=0.7, top_k=10, repetition_penalty=1.15):
-    """
-    Builds the prompt using the SAME template the model was fine-tuned on:
-      - Instruction: ...\nInput: ...\nOutput:   (when input_context is non-empty)
-      - Instruction: ...\nOutput:                (when input_context is empty)
-    Returns ONLY the answer text (the fixed generate_text_advanced already
-    excludes the prompt), printed as JSON matching your dataset schema.
-    """
+    
     user_instruction = (user_instruction or "").strip()
     user_input_context = (user_input_context or "").strip()
 
@@ -987,9 +960,7 @@ nltk.download('omw-1.4', quiet=True)
 MODEL_LABEL = "TelecomLM-49.9M"   # or "TelecomLM-49.9M"
 RESULTS_OUT_PATH = f"/kaggle/working/eval_results_{MODEL_LABEL.replace('.', '_')}.json"
 
-# Assumes `model`, `tokenizer`, `config`, `causal_mask`, `device`, and the `ask_model()`
-# helper are already defined in this kernel session (i.e. run this AFTER your existing
-# inference cell that loads the best checkpoint).
+
 
 N_EVAL_EXAMPLES = 50  # how many held-out QA pairs to evaluate on
 
