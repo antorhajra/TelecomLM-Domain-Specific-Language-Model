@@ -1,0 +1,10 @@
+bert-score
+datasets
+matplotlib
+nltk
+numpy
+rouge-score
+tokenizers
+torch
+torchmetrics
+tqdm
